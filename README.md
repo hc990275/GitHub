@@ -27,7 +27,7 @@
 
 ---
 
-**作者**：[hc990275](https://github.com/hc990275) • **项目地址**：[CF-Workers-GitHub-Manager](https://github.com/hc990275/CF-Workers-GitHub-Manager)
+**作者**：[hc990275](https://github.com/hc990275) • **项目地址**：[GitHub-Manager](https://github.com/hc990275/GitHub)
 
 ❤️ **分享是一种爱心，感谢你的支持与传播！**
 
@@ -525,7 +525,7 @@ https://your-worker.dev/share/owner/repo/branch/path?sign=xxx
 
 **作者**：[@hc990275](https://github.com/hc990275)
 
-**项目主页**：[CF-Workers-GitHub-Manager](https://github.com/hc990275/CF-Workers-GitHub-Manager)
+**项目主页**：[GitHub-Manager](https://github.com/hc990275/GitHub)
 
 <br>
 
