@@ -1,466 +1,193 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐙 GitHub 管理器 - Cloudflare Worker 版</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        * {
-            scroll-behavior: smooth;
-        }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-            min-height: 100vh;
-        }
-        
-        .gradient-text {
-            background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .glass-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(148, 163, 184, 0.1);
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-        }
-        
-        .nav-link:hover {
-            color: #60a5fa;
-        }
-        
-        .code-block {
-            background: #1e293b;
-            border-radius: 8px;
-            overflow-x: auto;
-        }
-        
-        .table-container {
-            overflow-x: auto;
-        }
-        
-        .table-container table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .table-container th,
-        .table-container td {
-            padding: 12px 16px;
-            text-align: left;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-        }
-        
-        .table-container th {
-            background: rgba(30, 41, 59, 0.8);
-            font-weight: 600;
-        }
-        
-        .table-container tr:hover {
-            background: rgba(59, 130, 246, 0.1);
-        }
-        
-        .accordion-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-        
-        .accordion-content.active {
-            max-height: 2000px;
-        }
-        
-        .pulse-dot {
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .floating {
-            animation: floating 3s ease-in-out infinite;
-        }
-        
-        @keyframes floating {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-        
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: #1e293b;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: #475569;
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
-        }
-    </style>
-</head>
-<body class="text-slate-300">
-    <!-- Navigation -->
-    <nav class="fixed top-0 left-0 right-0 z-50 glass-card border-b border-slate-700/50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <div class="flex items-center gap-3">
-                    <span class="text-3xl">🐙</span>
-                    <span class="font-bold text-xl text-white">GitHub 管理器</span>
-                </div>
-                <div class="hidden md:flex items-center gap-6">
-                    <a href="#features" class="nav-link transition-colors">功能特性</a>
-                    <a href="#deploy" class="nav-link transition-colors">快速部署</a>
-                    <a href="#usage" class="nav-link transition-colors">使用说明</a>
-                    <a href="#faq" class="nav-link transition-colors">常见问题</a>
-                    <a href="https://github.com/hc990275/CF-Workers-GitHub-Manager" target="_blank" 
-                       class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-                        GitHub
-                    </a>
-                </div>
-                <button id="mobileMenuBtn" class="md:hidden p-2">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <!-- Mobile Menu -->
-        <div id="mobileMenu" class="hidden md:hidden border-t border-slate-700/50">
-            <div class="px-4 py-4 space-y-3">
-                <a href="#features" class="block py-2 hover:text-blue-400">功能特性</a>
-                <a href="#deploy" class="block py-2 hover:text-blue-400">快速部署</a>
-                <a href="#usage" class="block py-2 hover:text-blue-400">使用说明</a>
-                <a href="#faq" class="block py-2 hover:text-blue-400">常见问题</a>
-            </div>
-        </div>
-    </nav>
+<div align="center">
 
-    <!-- Hero Section -->
-    <section class="pt-32 pb-20 px-4">
-        <div class="max-w-5xl mx-auto text-center">
-            <div class="floating inline-block mb-6">
-                <span class="text-8xl">🐙</span>
-            </div>
-            <h1 class="text-4xl md:text-6xl font-bold mb-6">
-                <span class="gradient-text">GitHub 管理器</span>
-            </h1>
-            <p class="text-xl md:text-2xl text-slate-400 mb-4">Cloudflare Worker 版</p>
-            <p class="text-lg text-slate-500 mb-8 max-w-3xl mx-auto">
-                基于 Cloudflare Workers 的 GitHub 仓库在线管理工具，<strong class="text-blue-400">无需翻墙</strong>即可在国内管理你的 GitHub 仓库
-            </p>
-            
-            <!-- Badges -->
-            <div class="flex flex-wrap justify-center gap-3 mb-10">
-                <span class="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/20 text-orange-400 rounded-full text-sm">
-                    <span>☁️</span> Cloudflare Workers
-                </span>
-                <span class="inline-flex items-center gap-2 px-4 py-2 bg-slate-500/20 text-slate-300 rounded-full text-sm">
-                    <span>📦</span> GitHub API
-                </span>
-                <span class="inline-flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 rounded-full text-sm">
-                    <span>📄</span> MIT License
-                </span>
-            </div>
-            
-            <div class="flex flex-wrap justify-center gap-4">
-                <a href="#deploy" class="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-xl font-semibold transition-all hover:scale-105">
-                    🚀 快速部署
-                </a>
-                <a href="https://github.com/hc990275/CF-Workers-GitHub-Manager" target="_blank" 
-                   class="bg-slate-700 hover:bg-slate-600 px-8 py-3 rounded-xl font-semibold transition-all hover:scale-105">
-                    📖 查看源码
-                </a>
-            </div>
-            
-            <!-- Author Info -->
-            <div class="mt-12 glass-card rounded-2xl p-6 max-w-md mx-auto">
-                <p class="text-slate-400 mb-2">作者：<strong class="text-white">hc990275</strong></p>
-                <a href="https://github.com/hc990275" target="_blank" class="text-blue-400 hover:text-blue-300">
-                    https://github.com/hc990275
-                </a>
-                <p class="mt-4 text-pink-400">❤️ 分享是一种爱心，感谢你的支持与传播！</p>
-            </div>
-        </div>
-    </section>
+# 🐙 GitHub 管理器
 
-    <!-- Why Use This Tool -->
-    <section class="py-16 px-4">
-        <div class="max-w-6xl mx-auto">
-            <h2 class="text-3xl font-bold text-center mb-12">
-                <span class="gradient-text">🌟 为什么使用这个工具？</span>
-            </h2>
-            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="text-4xl mb-4">🚫</div>
-                    <h3 class="font-semibold text-red-400 mb-2">痛点</h3>
-                    <p class="text-sm text-slate-400">国内访问 GitHub 慢或无法访问</p>
-                    <div class="mt-4 pt-4 border-t border-slate-700">
-                        <h3 class="font-semibold text-green-400 mb-2">✅ 解决方案</h3>
-                        <p class="text-sm">通过 Cloudflare Workers 代理，<strong>无需翻墙</strong></p>
-                    </div>
-                </div>
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="text-4xl mb-4">📱</div>
-                    <h3 class="font-semibold text-red-400 mb-2">痛点</h3>
-                    <p class="text-sm text-slate-400">手机/平板无法方便管理仓库</p>
-                    <div class="mt-4 pt-4 border-t border-slate-700">
-                        <h3 class="font-semibold text-green-400 mb-2">✅ 解决方案</h3>
-                        <p class="text-sm">响应式网页，<strong>任何设备</strong>都能用</p>
-                    </div>
-                </div>
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="text-4xl mb-4">🔧</div>
-                    <h3 class="font-semibold text-red-400 mb-2">痛点</h3>
-                    <p class="text-sm text-slate-400">不想安装 Git 客户端</p>
-                    <div class="mt-4 pt-4 border-t border-slate-700">
-                        <h3 class="font-semibold text-green-400 mb-2">✅ 解决方案</h3>
-                        <p class="text-sm">纯网页操作，<strong>在线编辑保存</strong></p>
-                    </div>
-                </div>
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="text-4xl mb-4">📦</div>
-                    <h3 class="font-semibold text-red-400 mb-2">痛点</h3>
-                    <p class="text-sm text-slate-400">发布 Release 需要网页操作</p>
-                    <div class="mt-4 pt-4 border-t border-slate-700">
-                        <h3 class="font-semibold text-green-400 mb-2">✅ 解决方案</h3>
-                        <p class="text-sm">支持<strong>在线发布版本</strong>并上传附件</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+### Cloudflare Worker 版
 
-    <!-- Features Section -->
-    <section id="features" class="py-16 px-4">
-        <div class="max-w-6xl mx-auto">
-            <h2 class="text-3xl font-bold text-center mb-12">
-                <span class="gradient-text">✨ 功能特性</span>
-            </h2>
-            
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- 仓库管理 -->
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-3xl">📁</span>
-                        <h3 class="text-xl font-semibold text-white">仓库管理</h3>
-                    </div>
-                    <ul class="space-y-2 text-sm text-slate-400">
-                        <li>🌍 <strong class="text-slate-300">无需翻墙</strong> - 通过 CF Workers 代理</li>
-                        <li>📁 <strong class="text-slate-300">多仓库管理</strong> - 自己的/Fork的/Star的</li>
-                        <li>🌿 <strong class="text-slate-300">分支切换</strong> - 支持切换不同分支</li>
-                        <li>🔍 <strong class="text-slate-300">仓库搜索</strong> - 搜索任意公开仓库</li>
-                        <li>⭐ <strong class="text-slate-300">Star/Fork</strong> - 一键操作</li>
-                    </ul>
-                </div>
-                
-                <!-- 文件编辑 -->
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-3xl">✏️</span>
-                        <h3 class="text-xl font-semibold text-white">文件编辑</h3>
-                    </div>
-                    <ul class="space-y-2 text-sm text-slate-400">
-                        <li>📝 <strong class="text-slate-300">在线编辑</strong> - 支持任何文本文件</li>
-                        <li>👁️ <strong class="text-slate-300">Markdown 预览</strong> - 实时渲染</li>
-                        <li>💾 <strong class="text-slate-300">快捷保存</strong> - Ctrl+S 一键保存</li>
-                        <li>➕ <strong class="text-slate-300">新建文件/文件夹</strong></li>
-                        <li>⬇️ <strong class="text-slate-300">文件下载</strong></li>
-                    </ul>
-                </div>
-                
-                <!-- 批量操作 -->
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-3xl">📤</span>
-                        <h3 class="text-xl font-semibold text-white">批量操作</h3>
-                    </div>
-                    <ul class="space-y-2 text-sm text-slate-400">
-                        <li>📤 <strong class="text-slate-300">批量上传</strong> - 多文件同时上传</li>
-                        <li>🗑️ <strong class="text-slate-300">批量删除</strong> - 文件/目录/仓库</li>
-                        <li>📂 <strong class="text-slate-300">目录折叠</strong> - 抽屉式目录</li>
-                        <li>🔍 <strong class="text-slate-300">文件搜索</strong> - 快速过滤</li>
-                    </ul>
-                </div>
-                
-                <!-- 文件分享 -->
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-3xl">🔗</span>
-                        <h3 class="text-xl font-semibold text-white">文件分享</h3>
-                    </div>
-                    <ul class="space-y-2 text-sm text-slate-400">
-                        <li>🔐 <strong class="text-slate-300">签名保护</strong> - 防止未授权访问</li>
-                        <li>⚡ <strong class="text-slate-300">实时更新</strong> - 无延迟</li>
-                        <li>🔄 <strong class="text-slate-300">强制刷新</strong> - 自动禁用缓存</li>
-                        <li>📦 <strong class="text-slate-300">Base64 编码</strong> - 可选加密</li>
-                    </ul>
-                </div>
-                
-                <!-- 版本发布 -->
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-3xl">🚀</span>
-                        <h3 class="text-xl font-semibold text-white">版本发布</h3>
-                    </div>
-                    <ul class="space-y-2 text-sm text-slate-400">
-                        <li>🏷️ <strong class="text-slate-300">创建 Release</strong> - Tag/标题/说明</li>
-                        <li>📎 <strong class="text-slate-300">上传附件</strong> - 支持多文件</li>
-                        <li>📋 <strong class="text-slate-300">草稿/预发布</strong> - 灵活选项</li>
-                        <li>📊 <strong class="text-slate-300">版本管理</strong> - 查看/删除</li>
-                    </ul>
-                </div>
-                
-                <!-- 权限管理 -->
-                <div class="glass-card rounded-xl p-6 feature-card transition-all">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-3xl">🔐</span>
-                        <h3 class="text-xl font-semibold text-white">权限管理</h3>
-                    </div>
-                    <ul class="space-y-2 text-sm text-slate-400">
-                        <li>👑 <strong class="text-slate-300">管理员</strong> - 完全权限</li>
-                        <li>✏️ <strong class="text-slate-300">编辑者</strong> - 读写权限</li>
-                        <li>👁️ <strong class="text-slate-300">只读</strong> - 仅查看</li>
-                        <li>🚶 <strong class="text-slate-300">游客模式</strong> - 无需登录浏览</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </section>
+<br>
 
-    <!-- Permission Table -->
-    <section class="py-16 px-4">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-2xl font-bold text-center mb-8">
-                <span class="gradient-text">🔑 权限说明</span>
-            </h2>
-            <div class="glass-card rounded-xl overflow-hidden table-container">
-                <table>
-                    <thead>
-                        <tr class="text-white">
-                            <th>权限等级</th>
-                            <th>查看文件</th>
-                            <th>编辑保存</th>
-                            <th>新建删除</th>
-                            <th>发布版本</th>
-                            <th>删除仓库</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="font-semibold">👑 管理员</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-green-400">✅</td>
-                        </tr>
-                        <tr>
-                            <td class="font-semibold">✏️ 编辑者</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-red-400">❌</td>
-                        </tr>
-                        <tr>
-                            <td class="font-semibold">👁️ 只读</td>
-                            <td class="text-green-400">✅</td>
-                            <td class="text-red-400">❌</td>
-                            <td class="text-red-400">❌</td>
-                            <td class="text-red-400">❌</td>
-                            <td class="text-red-400">❌</td>
-                        </tr>
-                        <tr>
-                            <td class="font-semibold">🚶 游客</td>
-                            <td class="text-yellow-400">仅列表</td>
-                            <td class="text-red-400">❌</td>
-                            <td class="text-red-400">❌</td>
-                            <td class="text-red-400">❌</td>
-                            <td class="text-red-400">❌</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
+[![GitHub API](https://img.shields.io/badge/GitHub-API-181717?style=for-the-badge&logo=github&logoColor=white)](https://docs.github.com/en/rest)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-    <!-- Deploy Section -->
-    <section id="deploy" class="py-16 px-4">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-3xl font-bold text-center mb-12">
-                <span class="gradient-text">🚀 快速部署</span>
-            </h2>
-            
-            <!-- Step 1 -->
-            <div class="glass-card rounded-xl p-6 mb-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <span class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold">1</span>
-                    <h3 class="text-xl font-semibold text-white">获取 GitHub Token</h3>
-                </div>
-                <ol class="list-decimal list-inside space-y-2 text-slate-400 ml-4">
-                    <li>打开 <a href="https://github.com/settings/tokens" target="_blank" class="text-blue-400 hover:underline">https://github.com/settings/tokens</a></li>
-                    <li>点击 <strong class="text-white">Generate new token (classic)</strong></li>
-                    <li>配置权限：
-                        <ul class="list-disc list-inside ml-6 mt-2 space-y-1">
-                            <li><strong class="text-green-400">Note</strong>: Cloudflare GitHub Manager</li>
-                            <li><strong class="text-green-400">Expiration</strong>: 选择有效期</li>
-                            <li>✅ <code class="bg-slate-800 px-2 py-0.5 rounded">repo</code> - 完整仓库访问（必选）</li>
-                            <li>✅ <code class="bg-slate-800 px-2 py-0.5 rounded">delete_repo</code> - 删除仓库（可选）</li>
-                            <li>✅ <code class="bg-slate-800 px-2 py-0.5 rounded">read:user</code> - 读取用户信息</li>
-                        </ul>
-                    </li>
-                    <li>点击 <strong class="text-white">Generate token</strong></li>
-                    <li><strong class="text-yellow-400">立即复制 Token（只显示一次！）</strong></li>
-                </ol>
-            </div>
-            
-            <!-- Step 2 -->
-            <div class="glass-card rounded-xl p-6 mb-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <span class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold">2</span>
-                    <h3 class="text-xl font-semibold text-white">部署到 Cloudflare</h3>
-                </div>
-                
-                <div class="space-y-4">
-                    <div class="bg-slate-800/50 rounded-lg p-4">
-                        <h4 class="font-semibold text-white mb-3">方法一：控制台部署（推荐新手）</h4>
-                        <ol class="list-decimal list-inside space-y-2 text-slate-400">
-                            <li>登录 <a href="https://dash.cloudflare.com" target="_blank" class="text-blue-400 hover:underline">Cloudflare Dashboard</a></li>
-                            <li>进入 <strong class="text-white">Workers & Pages</strong> → <strong class="text-white">Create</strong> → <strong class="text-white">Create Worker</strong></li>
-                            <li>给 Worker 起名，如 <code class="bg-slate-700 px-2 py-0.5 rounded">github-manager</code></li>
-                            <li>点击 <strong class="text-white">Edit code</strong></li>
-                            <li>删除默认代码，粘贴 <code class="bg-slate-700 px-2 py-0.5 rounded">worker.js</code> 全部内容</li>
-                            <li>点击 <strong class="text-white">Deploy</strong></li>
-                        </ol>
-                    </div>
-                    
-                    <div class="bg-slate-800/50 rounded-lg p-4">
-                        <h4 class="font-semibold text-white mb-3">方法二：Wrangler CLI 部署</h4>
-                        <div class="code-block p-4 text-sm">
-                            <pre><code class="language-bash"># 安装 Wrangler
+<br>
+
+**基于 Cloudflare Workers 的 GitHub 仓库在线管理工具**
+
+🌍 **无需翻墙** 即可在国内管理你的 GitHub 仓库
+
+<br>
+
+[🚀 快速部署](#-快速部署) •
+[✨ 功能特性](#-功能特性) •
+[📱 使用说明](#-使用说明) •
+[❓ 常见问题](#-常见问题)
+
+<br>
+
+---
+
+**作者**：[hc990275](https://github.com/hc990275) • **项目地址**：[CF-Workers-GitHub-Manager](https://github.com/hc990275/CF-Workers-GitHub-Manager)
+
+❤️ **分享是一种爱心，感谢你的支持与传播！**
+
+---
+
+</div>
+
+<br>
+
+## 🌟 为什么使用这个工具？
+
+<table>
+<tr>
+<td width="50%">
+
+### 🚫 痛点
+- 国内访问 GitHub 慢或无法访问
+- 手机/平板无法方便管理仓库
+- 不想安装 Git 客户端
+- 发布 Release 需要复杂操作
+
+</td>
+<td width="50%">
+
+### ✅ 解决方案
+- 通过 Cloudflare Workers 代理，**无需翻墙**
+- 响应式网页，**任何设备**都能用
+- 纯网页操作，**在线编辑保存**
+- 支持**在线发布版本**并上传附件
+
+</td>
+</tr>
+</table>
+
+<br>
+
+## ✨ 功能特性
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 📁 仓库管理
+
+- 🌍 **无需翻墙** - 通过 CF Workers 代理
+- 📁 **多仓库管理** - 自己的/Fork的/Star的
+- 🌿 **分支切换** - 支持切换不同分支
+- 🔍 **仓库搜索** - 搜索任意公开仓库
+- ⭐ **Star/Fork** - 一键操作
+
+</td>
+<td width="33%" valign="top">
+
+### ✏️ 文件编辑
+
+- 📝 **在线编辑** - 支持任何文本文件
+- 👁️ **Markdown 预览** - 实时渲染
+- 💾 **快捷保存** - Ctrl+S 一键保存
+- ➕ **新建文件/文件夹**
+- ⬇️ **文件下载**
+
+</td>
+<td width="33%" valign="top">
+
+### 📤 批量操作
+
+- 📤 **批量上传** - 多文件同时上传
+- 🗑️ **批量删除** - 文件/目录/仓库
+- 📂 **目录折叠** - 抽屉式目录
+- 🔍 **文件搜索** - 快速过滤
+
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
+
+### 🔗 文件分享
+
+- 🔐 **签名保护** - 防止未授权访问
+- ⚡ **实时更新** - 无延迟
+- 🔄 **强制刷新** - 自动禁用缓存
+- 📦 **Base64 编码** - 可选加密
+
+</td>
+<td width="33%" valign="top">
+
+### 🚀 版本发布
+
+- 🏷️ **创建 Release** - Tag/标题/说明
+- 📎 **上传附件** - 支持多文件
+- 📋 **草稿/预发布** - 灵活选项
+- 📊 **版本管理** - 查看/删除
+
+</td>
+<td width="33%" valign="top">
+
+### 🔐 权限管理
+
+- 👑 **管理员** - 完全权限
+- ✏️ **编辑者** - 读写权限
+- 👁️ **只读** - 仅查看
+- 🚶 **游客模式** - 无需登录浏览
+
+</td>
+</tr>
+</table>
+
+<br>
+
+## 🔑 权限说明
+
+| 权限等级 | 查看文件 | 编辑保存 | 新建删除 | 发布版本 | 删除仓库 |
+|:--------:|:--------:|:--------:|:--------:|:--------:|:--------:|
+| 👑 **管理员** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ✏️ **编辑者** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| 👁️ **只读** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 🚶 **游客** | 仅列表 | ❌ | ❌ | ❌ | ❌ |
+
+<br>
+
+## 🚀 快速部署
+
+### 步骤 1️⃣ 获取 GitHub Token
+
+1. 打开 👉 https://github.com/settings/tokens
+2. 点击 **Generate new token (classic)**
+3. 配置权限：
+   - **Note**: `Cloudflare GitHub Manager`
+   - **Expiration**: 选择有效期
+   - ✅ `repo` - 完整仓库访问（**必选**）
+   - ✅ `delete_repo` - 删除仓库（可选）
+   - ✅ `read:user` - 读取用户信息
+4. 点击 **Generate token**
+5. ⚠️ **立即复制 Token（只显示一次！）**
+
+---
+
+### 步骤 2️⃣ 部署到 Cloudflare
+
+<details>
+<summary><b>📌 方法一：控制台部署（推荐新手）</b></summary>
+
+<br>
+
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. 进入 **Workers & Pages** → **Create** → **Create Worker**
+3. 给 Worker 起名，如 `github-manager`
+4. 点击 **Edit code**
+5. 删除默认代码，粘贴 `worker.js` 全部内容
+6. 点击 **Deploy**
+
+</details>
+
+<details>
+<summary><b>📌 方法二：Wrangler CLI 部署</b></summary>
+
+<br>
+
+```bash
+# 安装 Wrangler
 npm install -g wrangler
 
 # 登录 Cloudflare
@@ -470,553 +197,342 @@ wrangler login
 mkdir github-manager && cd github-manager
 
 # 复制 worker.js 到项目目录，然后部署
-wrangler deploy</code></pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Step 3 -->
-            <div class="glass-card rounded-xl p-6 mb-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <span class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold">3</span>
-                    <h3 class="text-xl font-semibold text-white">配置环境变量</h3>
-                </div>
-                <p class="text-slate-400 mb-4">进入 Worker 的 <strong class="text-white">Settings</strong> → <strong class="text-white">Variables and Secrets</strong> → <strong class="text-white">Add</strong></p>
-                
-                <h4 class="font-semibold text-white mb-3">🔑 必需变量</h4>
-                <div class="table-container mb-6">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th>变量名</th>
-                                <th>说明</th>
-                                <th>示例值</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code class="text-blue-400">GITHUB_TOKEN</code></td>
-                                <td>GitHub Personal Access Token</td>
-                                <td><code class="text-slate-500">ghp_xxxxxxxxxxxx</code></td>
-                            </tr>
-                            <tr>
-                                <td><code class="text-blue-400">TOKEN_ADMIN</code></td>
-                                <td>管理员访问令牌（UUID）</td>
-                                <td><code class="text-slate-500">a1b2c3d4-e5f6-7890-abcd-ef1234567890</code></td>
-                            </tr>
-                            <tr>
-                                <td><code class="text-blue-400">TOKEN_EDITOR</code></td>
-                                <td>编辑者访问令牌（UUID）</td>
-                                <td><code class="text-slate-500">b2c3d4e5-f6g7-8901-bcde-f12345678901</code></td>
-                            </tr>
-                            <tr>
-                                <td><code class="text-blue-400">TOKEN_READ</code></td>
-                                <td>只读访问令牌（UUID）</td>
-                                <td><code class="text-slate-500">c3d4e5f6-g7h8-9012-cdef-123456789012</code></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <h4 class="font-semibold text-white mb-3">🎨 可选变量</h4>
-                <div class="table-container">
-                    <table class="text-sm">
-                        <thead>
-                            <tr>
-                                <th>变量名</th>
-                                <th>说明</th>
-                                <th>默认值</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code class="text-purple-400">SHARE_SECRET</code></td>
-                                <td>分享链接签名密钥</td>
-                                <td><code class="text-slate-500">default-share-secret-change-me</code></td>
-                            </tr>
-                            <tr>
-                                <td><code class="text-purple-400">FRIEND_LINKS</code></td>
-                                <td>友情链接（JSON 数组）</td>
-                                <td><code class="text-slate-500">[]</code></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="mt-4 bg-slate-800/50 rounded-lg p-4">
-                    <h5 class="font-semibold text-white mb-2">友情链接配置示例：</h5>
-                    <div class="code-block p-3 text-sm">
-                        <pre><code class="language-json">[
+wrangler deploy
+```
+
+</details>
+
+---
+
+### 步骤 3️⃣ 配置环境变量
+
+进入 Worker 的 **Settings** → **Variables and Secrets** → **Add**
+
+#### 🔑 必需变量
+
+| 变量名 | 说明 | 示例值 |
+|--------|------|--------|
+| `GITHUB_TOKEN` | GitHub Personal Access Token | `ghp_xxxxxxxxxxxx` |
+| `TOKEN_ADMIN` | 管理员访问令牌（UUID） | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| `TOKEN_EDITOR` | 编辑者访问令牌（UUID） | `b2c3d4e5-f6g7-8901-bcde-f12345678901` |
+| `TOKEN_READ` | 只读访问令牌（UUID） | `c3d4e5f6-g7h8-9012-cdef-123456789012` |
+
+> 💡 **提示**：使用 [uuidgenerator.net](https://www.uuidgenerator.net/) 生成 UUID
+
+#### 🎨 可选变量
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `SHARE_SECRET` | 分享链接签名密钥 | `default-share-secret-change-me` |
+| `FRIEND_LINKS` | 友情链接（JSON 数组） | `[]` |
+
+<details>
+<summary><b>📌 友情链接配置示例</b></summary>
+
+```json
+[
   {"name": "我的博客", "url": "https://blog.example.com"},
   {"name": "GitHub", "url": "https://github.com/hc990275"}
-]</code></pre>
-                    </div>
-                </div>
-                
-                <div class="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                    <p class="text-blue-400 text-sm">
-                        💡 <strong>提示：</strong>使用 <a href="https://www.uuidgenerator.net/" target="_blank" class="underline">uuidgenerator.net</a> 生成 UUID
-                    </p>
-                </div>
-            </div>
-            
-            <!-- Step 4 -->
-            <div class="glass-card rounded-xl p-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <span class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold">4</span>
-                    <h3 class="text-xl font-semibold text-white">访问使用</h3>
-                </div>
-                <p class="text-slate-400 mb-4">打开你的 Worker URL：</p>
-                <div class="code-block p-4 text-center">
-                    <code class="text-green-400">https://github-manager.你的账户.workers.dev</code>
-                </div>
-                <div class="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                    <p class="text-yellow-400 text-sm">
-                        ⚡ <strong>可选：</strong>在 Worker 的 <strong>触发器</strong> → <strong>自定义域</strong> 中绑定你自己的域名
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
+]
+```
 
-    <!-- Usage Section -->
-    <section id="usage" class="py-16 px-4">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-3xl font-bold text-center mb-12">
-                <span class="gradient-text">📱 使用说明</span>
-            </h2>
-            
-            <div class="space-y-4">
-                <!-- Accordion Items -->
-                <div class="glass-card rounded-xl overflow-hidden">
-                    <button class="accordion-btn w-full p-4 text-left flex items-center justify-between hover:bg-slate-700/30 transition-colors">
-                        <span class="font-semibold text-white">📁 仓库管理</span>
-                        <svg class="w-5 h-5 transform transition-transform accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-                    <div class="accordion-content">
-                        <div class="p-4 pt-0 text-slate-400 space-y-2">
-                            <p>• <strong class="text-slate-300">切换仓库</strong>：在左侧边栏顶部的下拉框中选择</p>
-                            <p>• <strong class="text-slate-300">复制仓库名</strong>：点击下拉框旁边的 📋 按钮</p>
-                            <p>• <strong class="text-slate-300">搜索仓库</strong>：点击 🔍 搜索仓库按钮，输入关键词</p>
-                            <p>• <strong class="text-slate-300">Star 仓库</strong>：在仓库操作区点击 ⭐ Star</p>
-                            <p>• <strong class="text-slate-300">Fork 仓库</strong>：在仓库操作区点击 🍴 Fork</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="glass-card rounded-xl overflow-hidden">
-                    <button class="accordion-btn w-full p-4 text-left flex items-center justify-between hover:bg-slate-700/30 transition-colors">
-                        <span class="font-semibold text-white">🌿 分支操作</span>
-                        <svg class="w-5 h-5 transform transition-transform accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-                    <div class="accordion-content">
-                        <div class="p-4 pt-0 text-slate-400 space-y-2">
-                            <p>• <strong class="text-slate-300">查看分支</strong>：仓库选择下方有分支下拉框</p>
-                            <p>• <strong class="text-slate-300">切换分支</strong>：选择不同分支，文件树自动刷新</p>
-                            <p>• <strong class="text-slate-300">注意</strong>：所有操作（编辑、上传、删除）都基于当前选择的分支</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="glass-card rounded-xl overflow-hidden">
-                    <button class="accordion-btn w-full p-4 text-left flex items-center justify-between hover:bg-slate-700/30 transition-colors">
-                        <span class="font-semibold text-white">✏️ 文件编辑</span>
-                        <svg class="w-5 h-5 transform transition-transform accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-                    <div class="accordion-content">
-                        <div class="p-4 pt-0 text-slate-400 space-y-2">
-                            <p>• <strong class="text-slate-300">打开文件</strong>：在文件树中点击文件名</p>
-                            <p>• <strong class="text-slate-300">编辑内容</strong>：直接在右侧编辑器中修改</p>
-                            <p>• <strong class="text-slate-300">Markdown 预览</strong>：<code class="bg-slate-800 px-1 rounded">.md</code> 文件自动开启实时预览</p>
-                            <p>• <strong class="text-slate-300">保存文件</strong>：点击 💾 保存按钮（或按 <kbd class="bg-slate-700 px-2 py-0.5 rounded text-xs">Ctrl+S</kbd>）</p>
-                            <p>• <strong class="text-slate-300">下载文件</strong>：点击 ⬇️ 下载按钮</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="glass-card rounded-xl overflow-hidden">
-                    <button class="accordion-btn w-full p-4 text-left flex items-center justify-between hover:bg-slate-700/30 transition-colors">
-                        <span class="font-semibold text-white">📤 文件上传与新建</span>
-                        <svg class="w-5 h-5 transform transition-transform accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-                    <div class="accordion-content">
-                        <div class="p-4 pt-0 text-slate-400 space-y-3">
-                            <div>
-                                <p class="font-semibold text-white mb-1">上传文件：</p>
-                                <p>1. 点击左下角 📤 上传按钮</p>
-                                <p>2. 选择目标目录</p>
-                                <p>3. 选择一个或多个文件</p>
-                                <p>4. 点击 📤 上传，等待进度条完成</p>
-                            </div>
-                            <div>
-                                <p class="font-semibold text-white mb-1">新建文件/文件夹：</p>
-                                <p>1. 点击左下角 ➕ 新建按钮</p>
-                                <p>2. 选择类型（文件或文件夹）</p>
-                                <p>3. 选择目标目录，输入名称</p>
-                                <p>4. 点击 ✅ 创建</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="glass-card rounded-xl overflow-hidden">
-                    <button class="accordion-btn w-full p-4 text-left flex items-center justify-between hover:bg-slate-700/30 transition-colors">
-                        <span class="font-semibold text-white">🗑️ 删除操作</span>
-                        <svg class="w-5 h-5 transform transition-transform accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-                    <div class="accordion-content">
-                        <div class="p-4 pt-0 text-slate-400 space-y-2">
-                            <p>1. 点击左下角 🗑️ 删除按钮</p>
-                            <p>2. 选择删除类型：</p>
-                            <p class="ml-4">• <strong class="text-slate-300">📄 文件</strong> - 多选删除文件</p>
-                            <p class="ml-4">• <strong class="text-slate-300">📁 目录</strong> - 删除整个文件夹</p>
-                            <p class="ml-4">• <strong class="text-slate-300">🗄️ 仓库</strong> - 删除整个仓库（仅管理员）</p>
-                            <p>3. 确认删除</p>
-                            <p class="text-red-400 mt-2">⚠️ 删除操作不可恢复，请谨慎操作！</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="glass-card rounded-xl overflow-hidden">
-                    <button class="accordion-btn w-full p-4 text-left flex items-center justify-between hover:bg-slate-700/30 transition-colors">
-                        <span class="font-semibold text-white">🔗 文件分享</span>
-                        <svg class="w-5 h-5 transform transition-transform accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-                    <div class="accordion-content">
-                        <div class="p-4 pt-0 text-slate-400 space-y-2">
-                            <p>1. 点击左下角 📤 分享按钮</p>
-                            <p>2. 选择要分享的文件</p>
-                            <p>3. 可选择是否 Base64 编码</p>
-                            <p>4. 点击 📋 复制链接</p>
-                            <div class="mt-3 p-3 bg-slate-800/50 rounded-lg">
-                                <p class="text-sm text-slate-500">链接格式：</p>
-                                <code class="text-xs text-green-400">https://your-worker.dev/share/owner/repo/branch/path?sign=xxx</code>
-                            </div>
-                            <div class="mt-2 space-y-1 text-sm">
-                                <p>✅ <strong class="text-slate-300">签名保护</strong> - 防止未授权访问</p>
-                                <p>✅ <strong class="text-slate-300">实时更新</strong> - 使用 GitHub API，无延迟</p>
-                                <p>✅ <strong class="text-slate-300">强制刷新</strong> - 自动禁用缓存</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="glass-card rounded-xl overflow-hidden">
-                    <button class="accordion-btn w-full p-4 text-left flex items-center justify-between hover:bg-slate-700/30 transition-colors">
-                        <span class="font-semibold text-white">🚀 版本发布（Releases）</span>
-                        <svg class="w-5 h-5 transform transition-transform accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-                    <div class="accordion-content">
-                        <div class="p-4 pt-0 text-slate-400 space-y-2">
-                            <p>1. 点击左下角 🚀 发布按钮</p>
-                            <p>2. 切换到 ➕ 新建版本标签</p>
-                            <p>3. 填写信息：</p>
-                            <p class="ml-4">• <strong class="text-slate-300">Tag</strong> - 版本标签（如 v1.0.0）</p>
-                            <p class="ml-4">• <strong class="text-slate-300">标题</strong> - 版本名称</p>
-                            <p class="ml-4">• <strong class="text-slate-300">说明</strong> - 更新日志（支持 Markdown）</p>
-                            <p class="ml-4">• <strong class="text-slate-300">附件</strong> - 可上传多个文件</p>
-                            <p class="ml-4">• <strong class="text-slate-300">选项</strong> - 草稿/预发布</p>
-                            <p>4. 点击 🚀 发布</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+</details>
 
-    <!-- API Section -->
-    <section class="py-16 px-4">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-2xl font-bold text-center mb-8">
-                <span class="gradient-text">🌐 API 接口</span>
-            </h2>
-            <div class="glass-card rounded-xl overflow-hidden table-container">
-                <table class="text-sm">
-                    <thead>
-                        <tr>
-                            <th>接口</th>
-                            <th>方法</th>
-                            <th>说明</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td><code class="text-blue-400">/api/repos</code></td><td>GET</td><td>获取所有仓库（分类）</td></tr>
-                        <tr><td><code class="text-blue-400">/api/search-repos</code></td><td>GET</td><td>搜索 GitHub 仓库</td></tr>
-                        <tr><td><code class="text-blue-400">/api/star</code></td><td>POST</td><td>关注仓库</td></tr>
-                        <tr><td><code class="text-blue-400">/api/unstar</code></td><td>POST</td><td>取消关注仓库</td></tr>
-                        <tr><td><code class="text-blue-400">/api/fork</code></td><td>POST</td><td>Fork 仓库</td></tr>
-                        <tr><td><code class="text-blue-400">/api/tree</code></td><td>GET</td><td>获取仓库文件树</td></tr>
-                        <tr><td><code class="text-blue-400">/api/file</code></td><td>GET</td><td>获取文件内容</td></tr>
-                        <tr><td><code class="text-blue-400">/api/save</code></td><td>POST</td><td>保存文件</td></tr>
-                        <tr><td><code class="text-blue-400">/api/delete-files</code></td><td>DELETE</td><td>删除多个文件</td></tr>
-                        <tr><td><code class="text-blue-400">/api/delete-dir</code></td><td>DELETE</td><td>删除目录</td></tr>
-                        <tr><td><code class="text-blue-400">/api/delete-repo</code></td><td>DELETE</td><td>删除仓库（需管理员）</td></tr>
-                        <tr><td><code class="text-blue-400">/api/releases</code></td><td>GET/POST</td><td>获取/创建 Release</td></tr>
-                        <tr><td><code class="text-blue-400">/api/upload-asset</code></td><td>POST</td><td>上传 Release 附件</td></tr>
-                        <tr><td><code class="text-blue-400">/api/share-url</code></td><td>GET</td><td>生成分享链接</td></tr>
-                        <tr><td><code class="text-blue-400">/api/verify</code></td><td>GET</td><td>验证 Token</td></tr>
-                        <tr><td><code class="text-blue-400">/api/friend-links</code></td><td>GET</td><td>获取友情链接</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
+---
 
-    <!-- Important Notes -->
-    <section class="py-16 px-4">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-2xl font-bold text-center mb-8">
-                <span class="gradient-text">⚠️ 重要注意事项</span>
-            </h2>
-            
-            <div class="grid md:grid-cols-2 gap-6">
-                <!-- 安全相关 -->
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                        <span>🔐</span> 安全相关
-                    </h3>
-                    <div class="space-y-3 text-sm text-slate-400">
-                        <div>
-                            <p class="font-semibold text-slate-300 mb-1">GitHub Token 安全：</p>
-                            <p>❌ 不要泄露你的 GitHub Token</p>
-                            <p>❌ 不要将 Token 提交到 Git 仓库</p>
-                            <p>✅ 务必使用环境变量存储</p>
-                            <p>✅ 定期更换 Token</p>
-                        </div>
-                        <div>
-                            <p class="font-semibold text-slate-300 mb-1">访问令牌安全：</p>
-                            <p>❌ 不要分享你的管理员 UUID</p>
-                            <p>✅ 可以分享只读 UUID 给信任的人</p>
-                            <p>✅ 使用强随机 UUID</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 配额限制 -->
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                        <span>📊</span> 配额限制
-                    </h3>
-                    <div class="space-y-3 text-sm text-slate-400">
-                        <div>
-                            <p class="font-semibold text-slate-300 mb-1">GitHub API 限制：</p>
-                            <p>• 未认证：60 次/小时</p>
-                            <p>• 认证：5000 次/小时</p>
-                        </div>
-                        <div>
-                            <p class="font-semibold text-slate-300 mb-1">Cloudflare Workers 限制：</p>
-                            <p>• 免费版：100,000 次请求/天</p>
-                            <p>• 单次请求：10ms CPU 时间</p>
-                        </div>
-                        <div>
-                            <p class="font-semibold text-slate-300 mb-1">文件大小限制：</p>
-                            <p>• GitHub API：单文件最大 100MB</p>
-                            <p>• 建议单文件不超过 10MB</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+### 步骤 4️⃣ 访问使用
 
-    <!-- FAQ Section -->
-    <section id="faq" class="py-16 px-4">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-3xl font-bold text-center mb-12">
-                <span class="gradient-text">❓ 常见问题</span>
-            </h2>
-            
-            <div class="space-y-4">
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="font-semibold text-white mb-2">Q: 提示 "GitHub Token 无效"？</h3>
-                    <p class="text-slate-400">A: 检查 <code class="bg-slate-800 px-1 rounded">GITHUB_TOKEN</code> 环境变量是否正确配置，Token 是否过期。</p>
-                </div>
-                
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="font-semibold text-white mb-2">Q: 仓库列表为空？</h3>
-                    <p class="text-slate-400">A: 检查 <code class="bg-slate-800 px-1 rounded">GITHUB_TOKEN</code> 是否正确配置，Token 是否有 <code class="bg-slate-800 px-1 rounded">repo</code> 权限。</p>
-                </div>
-                
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="font-semibold text-white mb-2">Q: 保存失败提示无权限？</h3>
-                    <p class="text-slate-400">A: 确认使用 <code class="bg-slate-800 px-1 rounded">TOKEN_ADMIN</code> 或 <code class="bg-slate-800 px-1 rounded">TOKEN_EDITOR</code> 的值登录。</p>
-                </div>
-                
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="font-semibold text-white mb-2">Q: 分享链接打开是 "无效的分享链接"？</h3>
-                    <p class="text-slate-400">A: 检查 <code class="bg-slate-800 px-1 rounded">SHARE_SECRET</code> 是否被修改，修改后旧链接会失效。链接中的 <code class="bg-slate-800 px-1 rounded">sign</code> 参数不能缺失或修改。</p>
-                </div>
-                
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="font-semibold text-white mb-2">Q: 无法删除仓库？</h3>
-                    <p class="text-slate-400">A: 确保：你是管理员角色、GitHub Token 有 <code class="bg-slate-800 px-1 rounded">delete_repo</code> 权限、正确输入了仓库名进行二次确认。</p>
-                </div>
-                
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="font-semibold text-white mb-2">Q: 上传文件失败？</h3>
-                    <p class="text-slate-400">A: 检查文件大小是否超过限制（建议不超过 10MB），Token 是否有 <code class="bg-slate-800 px-1 rounded">repo</code> 权限。</p>
-                </div>
-                
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="font-semibold text-white mb-2">Q: 友情链接不显示？</h3>
-                    <p class="text-slate-400">A: 检查 <code class="bg-slate-800 px-1 rounded">FRIEND_LINKS</code> 环境变量是否为有效的 JSON 格式。</p>
-                </div>
-            </div>
-        </div>
-    </section>
+打开你的 Worker URL：
 
-    <!-- Tech Stack -->
-    <section class="py-16 px-4">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-2xl font-bold text-center mb-8">
-                <span class="gradient-text">🛠 技术栈</span>
-            </h2>
-            <div class="flex flex-wrap justify-center gap-4">
-                <a href="https://workers.cloudflare.com/" target="_blank" class="glass-card px-6 py-3 rounded-xl hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                    <span class="text-orange-400">☁️</span>
-                    <span>Cloudflare Workers</span>
-                </a>
-                <a href="https://docs.github.com/en/rest" target="_blank" class="glass-card px-6 py-3 rounded-xl hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                    <span>📦</span>
-                    <span>GitHub API</span>
-                </a>
-                <a href="https://tailwindcss.com/" target="_blank" class="glass-card px-6 py-3 rounded-xl hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                    <span class="text-cyan-400">🎨</span>
-                    <span>Tailwind CSS</span>
-                </a>
-                <a href="https://marked.js.org/" target="_blank" class="glass-card px-6 py-3 rounded-xl hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                    <span>📝</span>
-                    <span>marked.js</span>
-                </a>
-                <a href="https://highlightjs.org/" target="_blank" class="glass-card px-6 py-3 rounded-xl hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                    <span class="text-yellow-400">💡</span>
-                    <span>highlight.js</span>
-                </a>
-            </div>
-        </div>
-    </section>
+```
+https://github-manager.你的账户.workers.dev
+```
 
-    <!-- Footer -->
-    <footer class="py-16 px-4 border-t border-slate-800">
-        <div class="max-w-4xl mx-auto text-center">
-            <div class="mb-8">
-                <span class="text-6xl">🐙</span>
-                <h3 class="text-2xl font-bold text-white mt-4">GitHub 管理器</h3>
-                <p class="text-slate-500 mt-2">Cloudflare Worker 版</p>
-            </div>
-            
-            <div class="glass-card rounded-2xl p-8 mb-8">
-                <h4 class="text-xl font-semibold text-white mb-4">🤝 贡献与反馈</h4>
-                <p class="text-slate-400 mb-4">欢迎提交 Issue 和 Pull Request！</p>
-                <div class="flex flex-wrap justify-center gap-4">
-                    <a href="https://github.com/hc990275/CF-Workers-GitHub-Manager/issues" target="_blank" 
-                       class="bg-slate-700 hover:bg-slate-600 px-6 py-2 rounded-lg transition-colors">
-                        📮 提交 Issue
-                    </a>
-                    <a href="https://github.com/hc990275/CF-Workers-GitHub-Manager" target="_blank" 
-                       class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors">
-                        ⭐ Star 项目
-                    </a>
-                </div>
-            </div>
-            
-            <div class="space-y-2 text-slate-500">
-                <p>作者：<a href="https://github.com/hc990275" target="_blank" class="text-blue-400 hover:underline">@hc990275</a></p>
-                <p>项目主页：<a href="https://github.com/hc990275/CF-Workers-GitHub-Manager" target="_blank" class="text-blue-400 hover:underline">CF-Workers-GitHub-Manager</a></p>
-                <p class="mt-4">📄 MIT License - 自由使用、修改和分发</p>
-            </div>
-            
-            <div class="mt-8 pt-8 border-t border-slate-800">
-                <p class="text-pink-400">❤️ 分享是一种爱心，你的支持是我最大的动力！</p>
-                <p class="text-slate-600 mt-4 text-sm">感谢使用 GitHub 管理器！如有问题，欢迎随时联系！🎉</p>
-            </div>
-        </div>
-    </footer>
+> 💡 **可选**：在 Worker 的 **触发器** → **自定义域** 中绑定你自己的域名
 
-    <script>
-        // Mobile menu toggle
-        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        const mobileMenu = document.getElementById('mobileMenu');
-        
-        mobileMenuBtn.addEventListener('click', () => {
-            mobileMenu.classList.toggle('hidden');
-        });
-        
-        // Close mobile menu when clicking a link
-        mobileMenu.querySelectorAll('a').forEach(link => {
-            link.addEventListener('click', () => {
-                mobileMenu.classList.add('hidden');
-            });
-        });
-        
-        // Accordion functionality
-        document.querySelectorAll('.accordion-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const content = btn.nextElementSibling;
-                const icon = btn.querySelector('.accordion-icon');
-                
-                content.classList.toggle('active');
-                icon.classList.toggle('rotate-180');
-            });
-        });
-        
-        // Smooth scroll for navigation
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function(e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    const headerOffset = 80;
-                    const elementPosition = target.getBoundingClientRect().top;
-                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-                    
-                    window.scrollTo({
-                        top: offsetPosition,
-                        behavior: 'smooth'
-                    });
-                }
-            });
-        });
-        
-        // Highlight.js initialization
-        hljs.highlightAll();
-        
-        // Add active state to nav links on scroll
-        const sections = document.querySelectorAll('section[id]');
-        const navLinks = document.querySelectorAll('.nav-link');
-        
-        window.addEventListener('scroll', () => {
-            let current = '';
-            sections.forEach(section => {
-                const sectionTop = section.offsetTop;
-                const sectionHeight = section.clientHeight;
-                if (scrollY >= sectionTop - 200) {
-                    current = section.getAttribute('id');
-                }
-            });
-            
-            navLinks.forEach(link => {
-                link.classList.remove('text-blue-400');
-                if (link.getAttribute('href') === `#${current}`) {
-                    link.classList.add('text-blue-400');
-                }
-            });
-        });
-    </script>
-</body>
-</html>
+<br>
+
+## 📱 使用说明
+
+<details>
+<summary><b>📁 仓库管理</b></summary>
+
+<br>
+
+- **切换仓库**：在左侧边栏顶部的下拉框中选择
+- **复制仓库名**：点击下拉框旁边的 📋 按钮
+- **搜索仓库**：点击 🔍 搜索仓库按钮，输入关键词
+- **Star 仓库**：在仓库操作区点击 ⭐ Star
+- **Fork 仓库**：在仓库操作区点击 🍴 Fork
+
+</details>
+
+<details>
+<summary><b>🌿 分支操作</b></summary>
+
+<br>
+
+- **查看分支**：仓库选择下方有分支下拉框
+- **切换分支**：选择不同分支，文件树自动刷新
+- **注意**：所有操作（编辑、上传、删除）都基于当前选择的分支
+
+</details>
+
+<details>
+<summary><b>✏️ 文件编辑</b></summary>
+
+<br>
+
+- **打开文件**：在文件树中点击文件名
+- **编辑内容**：直接在右侧编辑器中修改
+- **Markdown 预览**：`.md` 文件自动开启实时预览
+- **保存文件**：点击 💾 保存按钮（或按 `Ctrl+S`）
+- **下载文件**：点击 ⬇️ 下载按钮
+
+</details>
+
+<details>
+<summary><b>📤 文件上传与新建</b></summary>
+
+<br>
+
+**上传文件：**
+1. 点击左下角 📤 上传按钮
+2. 选择目标目录
+3. 选择一个或多个文件
+4. 点击 📤 上传，等待进度条完成
+
+**新建文件/文件夹：**
+1. 点击左下角 ➕ 新建按钮
+2. 选择类型（文件或文件夹）
+3. 选择目标目录，输入名称
+4. 点击 ✅ 创建
+
+</details>
+
+<details>
+<summary><b>🗑️ 删除操作</b></summary>
+
+<br>
+
+1. 点击左下角 🗑️ 删除按钮
+2. 选择删除类型：
+   - **📄 文件** - 多选删除文件
+   - **📁 目录** - 删除整个文件夹
+   - **🗄️ 仓库** - 删除整个仓库（仅管理员）
+3. 确认删除
+
+> ⚠️ **删除操作不可恢复，请谨慎操作！**
+
+</details>
+
+<details>
+<summary><b>🔗 文件分享</b></summary>
+
+<br>
+
+1. 点击左下角 📤 分享按钮
+2. 选择要分享的文件
+3. 可选择是否 Base64 编码
+4. 点击 📋 复制链接
+
+**链接格式：**
+```
+https://your-worker.dev/share/owner/repo/branch/path?sign=xxx
+```
+
+**特性：**
+- ✅ 签名保护 - 防止未授权访问
+- ✅ 实时更新 - 使用 GitHub API，无延迟
+- ✅ 强制刷新 - 自动禁用缓存
+
+</details>
+
+<details>
+<summary><b>🚀 版本发布（Releases）</b></summary>
+
+<br>
+
+1. 点击左下角 🚀 发布按钮
+2. 切换到 ➕ 新建版本标签
+3. 填写信息：
+   - **Tag** - 版本标签（如 `v1.0.0`）
+   - **标题** - 版本名称
+   - **说明** - 更新日志（支持 Markdown）
+   - **附件** - 可上传多个文件
+   - **选项** - 草稿/预发布
+4. 点击 🚀 发布
+
+</details>
+
+<br>
+
+## 🌐 API 接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/repos` | GET | 获取所有仓库（分类） |
+| `/api/search-repos` | GET | 搜索 GitHub 仓库 |
+| `/api/star` | POST | 关注仓库 |
+| `/api/unstar` | POST | 取消关注仓库 |
+| `/api/fork` | POST | Fork 仓库 |
+| `/api/tree` | GET | 获取仓库文件树 |
+| `/api/file` | GET | 获取文件内容 |
+| `/api/save` | POST | 保存文件 |
+| `/api/delete-files` | DELETE | 删除多个文件 |
+| `/api/delete-dir` | DELETE | 删除目录 |
+| `/api/delete-repo` | DELETE | 删除仓库（需管理员） |
+| `/api/releases` | GET/POST | 获取/创建 Release |
+| `/api/upload-asset` | POST | 上传 Release 附件 |
+| `/api/share-url` | GET | 生成分享链接 |
+| `/api/verify` | GET | 验证 Token |
+| `/api/friend-links` | GET | 获取友情链接 |
+
+<br>
+
+## ⚠️ 重要注意事项
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🔐 安全相关
+
+**GitHub Token 安全：**
+- ❌ 不要泄露你的 GitHub Token
+- ❌ 不要将 Token 提交到 Git 仓库
+- ✅ 务必使用环境变量存储
+- ✅ 定期更换 Token
+
+**访问令牌安全：**
+- ❌ 不要分享你的管理员 UUID
+- ✅ 可以分享只读 UUID 给信任的人
+- ✅ 使用强随机 UUID
+
+</td>
+<td width="50%" valign="top">
+
+### 📊 配额限制
+
+**GitHub API 限制：**
+- 未认证：60 次/小时
+- 认证：5000 次/小时
+
+**Cloudflare Workers 限制：**
+- 免费版：100,000 次请求/天
+- 单次请求：10ms CPU 时间
+
+**文件大小限制：**
+- GitHub API：单文件最大 100MB
+- 建议单文件不超过 10MB
+
+</td>
+</tr>
+</table>
+
+<br>
+
+## ❓ 常见问题
+
+<details>
+<summary><b>Q: 提示 "GitHub Token 无效"？</b></summary>
+
+**A:** 检查 `GITHUB_TOKEN` 环境变量是否正确配置，Token 是否过期。
+
+</details>
+
+<details>
+<summary><b>Q: 仓库列表为空？</b></summary>
+
+**A:** 检查 `GITHUB_TOKEN` 是否正确配置，Token 是否有 `repo` 权限。
+
+</details>
+
+<details>
+<summary><b>Q: 保存失败提示无权限？</b></summary>
+
+**A:** 确认使用 `TOKEN_ADMIN` 或 `TOKEN_EDITOR` 的值登录。
+
+</details>
+
+<details>
+<summary><b>Q: 分享链接打开是 "无效的分享链接"？</b></summary>
+
+**A:** 检查 `SHARE_SECRET` 是否被修改，修改后旧链接会失效。链接中的 `sign` 参数不能缺失或修改。
+
+</details>
+
+<details>
+<summary><b>Q: 无法删除仓库？</b></summary>
+
+**A:** 确保：
+- 你是管理员角色
+- GitHub Token 有 `delete_repo` 权限
+- 正确输入了仓库名进行二次确认
+
+</details>
+
+<details>
+<summary><b>Q: 上传文件失败？</b></summary>
+
+**A:** 检查文件大小是否超过限制（建议不超过 10MB），Token 是否有 `repo` 权限。
+
+</details>
+
+<details>
+<summary><b>Q: 友情链接不显示？</b></summary>
+
+**A:** 检查 `FRIEND_LINKS` 环境变量是否为有效的 JSON 格式。
+
+</details>
+
+<br>
+
+## 🛠 技术栈
+
+<p align="center">
+  <a href="https://workers.cloudflare.com/"><img src="https://img.shields.io/badge/Cloudflare-Workers-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Cloudflare Workers"></a>
+  <a href="https://docs.github.com/en/rest"><img src="https://img.shields.io/badge/GitHub-API-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub API"></a>
+  <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind-CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS"></a>
+  <a href="https://marked.js.org/"><img src="https://img.shields.io/badge/marked.js-Markdown-000000?style=for-the-badge" alt="marked.js"></a>
+  <a href="https://highlightjs.org/"><img src="https://img.shields.io/badge/highlight.js-Code-3C4B64?style=for-the-badge" alt="highlight.js"></a>
+</p>
+
+<br>
+
+## 🤝 贡献与反馈
+
+欢迎提交 Issue 和 Pull Request！
+
+<p align="center">
+  <a href="https://github.com/hc990275/CF-Workers-GitHub-Manager/issues"><img src="https://img.shields.io/badge/📮_提交_Issue-blue?style=for-the-badge" alt="提交 Issue"></a>
+  <a href="https://github.com/hc990275/CF-Workers-GitHub-Manager"><img src="https://img.shields.io/badge/⭐_Star_项目-yellow?style=for-the-badge" alt="Star 项目"></a>
+</p>
+
+<br>
+
+## 📄 开源协议
+
+本项目采用 **MIT License** 开源协议 - 自由使用、修改和分发。
+
+<br>
+
+---
+
+<div align="center">
+
+## 📞 联系方式
+
+**作者**：[@hc990275](https://github.com/hc990275)
+
+**项目主页**：[CF-Workers-GitHub-Manager](https://github.com/hc990275/CF-Workers-GitHub-Manager)
+
+<br>
+
+❤️ **分享是一种爱心，你的支持是我最大的动力！**
+
+<br>
+
+**感谢使用 GitHub 管理器！如有问题，欢迎随时联系！** 🎉
+
+</div>
