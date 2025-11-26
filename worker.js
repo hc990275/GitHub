@@ -1,5 +1,5 @@
-// ========== Cloudflare Worker 完整代码 (GitHub 管理器 v7) ==========
-// 功能：多仓库管理、文件日期显示、上传下载、删库修复、友情链接右上角、分支切换
+// ========== Cloudflare Worker 完整代码 (GitHub 管理器 v8) ==========
+// 功能：多仓库管理、分支切换、批量下载、上传删除、友情链接、Releases
 // 作者：hc990275
 // GitHub：https://github.com/hc990275
 
@@ -296,44 +296,6 @@ async function githubAPI(env, owner, repo, path, method = "GET", body = null) {
   return res.json();
 }
 
-// 获取文件树（包含日期）
-async function getTreeWithDates(env, owner, repo, branch) {
-  const token = getGitHubToken(env);
-  
-  // 获取文件列表
-  const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-  const treeRes = await githubFetch(env, treeUrl);
-  const treeData = await treeRes.json();
-  if (!treeData.tree) return [];
-  
-  const files = treeData.tree.filter(item => item.type === "blob");
-  
-  // 获取最近的提交来获取文件日期
-  const commitsUrl = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=100`;
-  const commitsRes = await githubFetch(env, commitsUrl);
-  const commits = await commitsRes.json();
-  
-  // 构建文件日期映射
-  const fileDates = {};
-  if (Array.isArray(commits)) {
-    for (const commit of commits) {
-      if (commit.files) {
-        for (const file of commit.files) {
-          if (!fileDates[file.filename]) {
-            fileDates[file.filename] = commit.commit.committer.date;
-          }
-        }
-      }
-    }
-  }
-  
-  return files.map(item => ({
-    path: item.path,
-    size: item.size,
-    date: fileDates[item.path] || null
-  }));
-}
-
 // 简单获取文件树
 async function getTree(env, owner, repo, branch) {
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
@@ -346,11 +308,10 @@ async function getTree(env, owner, repo, branch) {
   }));
 }
 
-// 强制以文本方式读取任何文件（修复空文件问题）
+// 强制以文本方式读取任何文件
 async function getFileAsText(env, owner, repo, branch, path) {
   const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
   try {
-    // 添加缓存控制和时间戳，强制实时刷新
     const res = await fetch(rawUrl + '?t=' + Date.now(), {
       headers: {
         "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -363,16 +324,10 @@ async function getFileAsText(env, owner, repo, branch, path) {
     const metaRes = await githubFetch(env, `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`);
     const meta = await metaRes.json();
     
-    // 修复：空字符串也是有效内容
     return { content: content || '', sha: meta.sha, size: meta.size || content.length, name: path.split('/').pop() };
   } catch (e) {
     return { error: e.message };
   }
-}
-
-// 获取文件下载URL
-function getDownloadUrl(owner, repo, branch, path) {
-  return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
 }
 
 async function saveFile(env, owner, repo, branch, path, content, sha = null) {
@@ -415,7 +370,6 @@ async function deleteDirectory(env, owner, repo, branch, dirPath) {
   return { count };
 }
 
-// 删除仓库 - 修复版本
 async function deleteRepository(env, owner, repo) {
   const token = getGitHubToken(env);
   const url = `https://api.github.com/repos/${owner}/${repo}`;
@@ -474,11 +428,10 @@ async function uploadReleaseAsset(env, uploadUrl, fileName, fileContent, content
   return res.json();
 }
 
-// 上传文件到仓库
 async function uploadFileToRepo(env, owner, repo, branch, path, content, sha = null) {
   const body = {
     message: `Upload ${path} via GitHub Manager`,
-    content: content, // 已经是 base64
+    content: content,
     branch: branch
   };
   if (sha) body.sha = sha;
@@ -617,6 +570,23 @@ const FRONTEND_HTML = `<!DOCTYPE html>
     <div class="flex gap-2">
       <button id="uploadConfirm" class="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-lg font-semibold">📤 上传</button>
       <button id="uploadCancel" class="flex-1 bg-slate-600 hover:bg-slate-500 py-2 rounded-lg">❌ 取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 下载弹窗 -->
+<div id="downloadModal" class="modal">
+  <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-slate-700 max-h-[80vh] overflow-hidden flex flex-col">
+    <h3 class="text-xl font-bold mb-4">⬇️ 下载文件</h3>
+    <div class="flex items-center gap-2 mb-2">
+      <button id="downloadSelectAll" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">全选</button>
+      <button id="downloadDeselectAll" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">取消全选</button>
+      <span id="downloadSelectedCount" class="text-xs text-slate-400 ml-auto">已选: 0</span>
+    </div>
+    <div id="downloadFileList" class="flex-1 overflow-y-auto bg-slate-900 rounded-lg p-2 max-h-96"></div>
+    <div class="flex gap-2 mt-4">
+      <button id="downloadConfirm" class="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-lg font-semibold">⬇️ 开始下载</button>
+      <button id="downloadCancel" class="flex-1 bg-slate-600 hover:bg-slate-500 py-2 rounded-lg">❌ 取消</button>
     </div>
   </div>
 </div>
@@ -777,13 +747,14 @@ const FRONTEND_HTML = `<!DOCTYPE html>
         <button id="uploadBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded-lg text-sm transition hidden">📤 上传</button>
       </div>
       <div class="flex gap-2">
+        <button id="downloadBtn" class="flex-1 bg-cyan-600 hover:bg-cyan-700 py-2 rounded-lg text-sm transition">⬇️ 下载</button>
         <button id="deleteBtn" class="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded-lg text-sm transition hidden">🗑️ 删除</button>
-        <button id="shareBtn" class="flex-1 bg-purple-600 hover:bg-purple-700 py-2 rounded-lg text-sm transition hidden">📤 分享</button>
       </div>
       <div class="flex gap-2">
+        <button id="shareBtn" class="flex-1 bg-purple-600 hover:bg-purple-700 py-2 rounded-lg text-sm transition hidden">📤 分享</button>
         <button id="releaseBtn" class="flex-1 bg-orange-600 hover:bg-orange-700 py-2 rounded-lg text-sm transition hidden">🚀 发布</button>
-        <button id="refreshBtn" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded-lg text-sm transition">🔄 刷新</button>
       </div>
+      <button id="refreshBtn" class="w-full bg-slate-700 hover:bg-slate-600 py-2 rounded-lg text-sm transition">🔄 刷新</button>
     </div>
   </div>
 
@@ -798,7 +769,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
       <div class="flex items-center gap-2">
         <!-- 友情链接在这里 -->
         <div id="friendLinksTop" class="flex items-center gap-2 mr-2 hidden"></div>
-        <button id="downloadBtn" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition hidden">⬇️ 下载</button>
         <button id="previewToggle" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition hidden">👁️ 预览</button>
         <button id="saveBtn" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition disabled:opacity-40" disabled>💾 保存</button>
       </div>
@@ -838,6 +808,7 @@ const state = {
   folderStates: {},
   deleteType: 'file',
   selectedFiles: new Set(),
+  downloadFiles: new Set(),
   createType: 'file'
 };
 
@@ -948,7 +919,6 @@ $('branchSelect').addEventListener('change', () => {
   $('editor').classList.add('hidden');
   $('welcome').classList.remove('hidden');
   $('filepath').textContent = '未选择文件';
-  $('downloadBtn').classList.add('hidden');
   $('copyFilePathBtn').classList.add('hidden');
   loadTree();
 });
@@ -962,7 +932,6 @@ $('repoSelect').addEventListener('change', async () => {
   $('editor').classList.add('hidden');
   $('welcome').classList.remove('hidden');
   $('filepath').textContent = '未选择文件';
-  $('downloadBtn').classList.add('hidden');
   $('copyFilePathBtn').classList.add('hidden');
   
   await loadBranches();
@@ -1147,7 +1116,6 @@ async function loadFile(path) {
     $('welcome').classList.add('hidden');
     $('editor').classList.remove('hidden');
     $('fileStatus').classList.add('hidden');
-    $('downloadBtn').classList.remove('hidden');
     $('copyFilePathBtn').classList.remove('hidden');
     
     if (path.endsWith('.md')) {
@@ -1170,18 +1138,6 @@ async function loadFile(path) {
     toast('加载失败: ' + e.message, 'error');
   }
 }
-
-// 下载当前文件
-$('downloadBtn').addEventListener('click', () => {
-  if (!state.currentFile || !state.currentRepo || !state.currentBranch) return;
-  const { owner, repo } = state.currentRepo;
-  const url = 'https://raw.githubusercontent.com/' + owner + '/' + repo + '/' + state.currentBranch + '/' + state.currentFile;
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = state.currentFile.split('/').pop();
-  a.click();
-  toast('开始下载...', 'info');
-});
 
 async function saveFile() {
   if (!state.currentFile || !state.userRole || state.userRole === 'read' || !state.currentRepo || !state.currentBranch) return;
@@ -1266,6 +1222,68 @@ $('uploadConfirm').addEventListener('click', async () => {
 });
 
 $('uploadCancel').addEventListener('click', () => $('uploadModal').classList.remove('show'));
+
+// 下载功能
+$('downloadBtn').addEventListener('click', () => {
+  state.downloadFiles.clear();
+  renderDownloadFileList();
+  $('downloadModal').classList.add('show');
+});
+
+function renderDownloadFileList() {
+  $('downloadFileList').innerHTML = state.fileList.map(file => 
+    '<label class="flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-slate-800">' +
+      '<input type="checkbox" class="download-file-checkbox w-4 h-4" data-path="' + file.path + '">' +
+      '<span>' + getFileIcon(file.path.split('/').pop()) + '</span>' +
+      '<span class="truncate flex-1 text-sm">' + file.path + '</span>' +
+    '</label>'
+  ).join('');
+  
+  $('downloadFileList').querySelectorAll('.download-file-checkbox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) state.downloadFiles.add(cb.dataset.path);
+      else state.downloadFiles.delete(cb.dataset.path);
+      $('downloadSelectedCount').textContent = '已选: ' + state.downloadFiles.size;
+    });
+  });
+  $('downloadSelectedCount').textContent = '已选: 0';
+}
+
+$('downloadSelectAll').addEventListener('click', () => {
+  $('downloadFileList').querySelectorAll('.download-file-checkbox').forEach(cb => {
+    cb.checked = true;
+    state.downloadFiles.add(cb.dataset.path);
+  });
+  $('downloadSelectedCount').textContent = '已选: ' + state.downloadFiles.size;
+});
+
+$('downloadDeselectAll').addEventListener('click', () => {
+  $('downloadFileList').querySelectorAll('.download-file-checkbox').forEach(cb => cb.checked = false);
+  state.downloadFiles.clear();
+  $('downloadSelectedCount').textContent = '已选: 0';
+});
+
+$('downloadConfirm').addEventListener('click', () => {
+  if (state.downloadFiles.size === 0) { toast('请选择要下载的文件', 'warning'); return; }
+  if (!state.currentRepo || !state.currentBranch) return;
+  
+  const { owner, repo } = state.currentRepo;
+  let count = 0;
+  
+  state.downloadFiles.forEach(path => {
+    const url = 'https://raw.githubusercontent.com/' + owner + '/' + repo + '/' + state.currentBranch + '/' + path;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = path.split('/').pop();
+    a.click();
+    count++;
+  });
+  
+  toast('开始下载 ' + count + ' 个文件...', 'success');
+  $('downloadModal').classList.remove('show');
+});
+
+$('downloadCancel').addEventListener('click', () => $('downloadModal').classList.remove('show'));
 
 // 新建
 $('createTypeFile').addEventListener('click', () => {
@@ -1450,7 +1468,6 @@ $('deleteConfirm').addEventListener('click', async () => {
       state.currentFile = null;
       $('editor').classList.add('hidden');
       $('welcome').classList.remove('hidden');
-      $('downloadBtn').classList.add('hidden');
       $('copyFilePathBtn').classList.add('hidden');
       loadTree();
     } catch (e) {
@@ -1601,7 +1618,7 @@ $('searchRepoBtn').addEventListener('click', async () => {
 $('searchRepoInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('searchRepoBtn').click(); });
 $('searchRepoClose').addEventListener('click', () => $('searchRepoModal').classList.remove('show'));
 
-// 分享功能（添加时间戳强制刷新）
+// 分享功能
 function showShareModal() {
   $('shareFileSelect').innerHTML = state.fileList.map(file => 
     '<option value="' + file.path + '">' + file.path + '</option>'
@@ -1691,7 +1708,6 @@ async function loadReleases() {
       '</div>'
     ).join('');
     
-    // 绑定展开/折叠
     $('releasesList').querySelectorAll('.release-header').forEach(header => {
       header.addEventListener('click', () => {
         const content = header.nextElementSibling;
@@ -1885,7 +1901,6 @@ $('logoutBtn').addEventListener('click', () => {
   localStorage.removeItem('editorToken');
   $('editor').classList.add('hidden');
   $('welcome').classList.remove('hidden');
-  $('downloadBtn').classList.add('hidden');
   $('copyFilePathBtn').classList.add('hidden');
   $('authModal').classList.add('show');
   $('tokenInput').value = '';
@@ -1950,7 +1965,6 @@ if (saved) {
 </body>
 </html>`;
 
-
 // ========== 路由处理 ==========
 
 export default {
@@ -1967,7 +1981,7 @@ export default {
       return htmlResponse(FRONTEND_HTML);
     }
 
-    // 分享路由（使用 GitHub API 确保实时更新，无缓存延迟）
+    // 分享路由（使用 GitHub API 确保实时更新）
     if (path.startsWith("/share/")) {
       const fullPath = decodeURIComponent(path.substring(7));
       const sign = url.searchParams.get("sign");
@@ -1988,18 +2002,14 @@ export default {
       const filePath = parts.slice(3).join('/');
       
       try {
-        // 改用 GitHub API 获取实时内容，避免 CDN 缓存延迟
         const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
         const res = await githubFetch(env, apiUrl);
         
         if (!res.ok) return textResponse("文件不存在", 404);
         
         const data = await res.json();
-        
-        // GitHub API 返回的 content 是 base64 编码的，需要解码
         let content = base64ToUtf8(data.content.replace(/\n/g, ''));
         
-        // 如果用户要求 base64 编码，则重新编码
         if (encode === "base64") {
           content = utf8ToBase64(content);
         }
@@ -2088,7 +2098,7 @@ export default {
       }
     }
 
-    // API: 生成分享链接（添加时间戳强制刷新）
+    // API: 生成分享链接
     if (path === "/api/share-url") {
       const filePath = url.searchParams.get("path");
       const encode = url.searchParams.get("encode");
@@ -2098,7 +2108,6 @@ export default {
       const sign = generateShareSign(filePath, secret);
       let shareUrl = url.origin + '/share/' + encodeURIComponent(filePath) + '?sign=' + sign;
       if (encode) shareUrl += '&encode=' + encode;
-      // 添加时间戳参数提示实时刷新
       shareUrl += '&t=' + Date.now();
       
       return jsonResponse({ url: shareUrl, sign });
@@ -2304,3 +2313,4 @@ export default {
 
     return jsonResponse({ error: "Not found" }, 404);
   }
+};
