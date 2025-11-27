@@ -770,6 +770,7 @@ const FRONTEND_HTML = `<!DOCTYPE html>
         <!-- 友情链接在这里 -->
         <div id="friendLinksTop" class="flex items-center gap-2 mr-2 hidden"></div>
         <button id="previewToggle" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition hidden">👁️ 预览</button>
+        <button id="quickShareBtn" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm transition hidden" title="生成分享链接并复制">🔗 分享刷新</button>
         <button id="saveBtn" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition disabled:opacity-40" disabled>💾 保存</button>
       </div>
     </div>
@@ -920,6 +921,7 @@ $('branchSelect').addEventListener('change', () => {
   $('welcome').classList.remove('hidden');
   $('filepath').textContent = '未选择文件';
   $('copyFilePathBtn').classList.add('hidden');
+  $('quickShareBtn').classList.add('hidden');
   loadTree();
 });
 
@@ -933,6 +935,7 @@ $('repoSelect').addEventListener('change', async () => {
   $('welcome').classList.remove('hidden');
   $('filepath').textContent = '未选择文件';
   $('copyFilePathBtn').classList.add('hidden');
+  $('quickShareBtn').classList.add('hidden');
   
   await loadBranches();
   loadTree();
@@ -958,6 +961,24 @@ $('copyFilePathBtn').addEventListener('click', () => {
   navigator.clipboard.writeText(state.currentFile).then(() => {
     toast('已复制文件路径: ' + state.currentFile, 'success');
   });
+});
+
+// 快速分享刷新按钮
+$('quickShareBtn').addEventListener('click', async () => {
+  if (!state.currentFile || !state.currentRepo || !state.currentBranch) return;
+  
+  const { owner, repo } = state.currentRepo;
+  const path = owner + '/' + repo + '/' + state.currentBranch + '/' + state.currentFile;
+  
+  try {
+    const res = await api('/api/share-url?path=' + encodeURIComponent(path));
+    const data = await res.json();
+    
+    await navigator.clipboard.writeText(data.url);
+    toast('分享链接已复制!', 'success');
+  } catch (e) {
+    toast('生成分享链接失败', 'error');
+  }
 });
 
 // Star/Unstar
@@ -1117,6 +1138,11 @@ async function loadFile(path) {
     $('editor').classList.remove('hidden');
     $('fileStatus').classList.add('hidden');
     $('copyFilePathBtn').classList.remove('hidden');
+    
+    // 显示快速分享按钮（如果有权限）
+    if (state.userRole && state.userRole !== 'read') {
+      $('quickShareBtn').classList.remove('hidden');
+    }
     
     if (path.endsWith('.md')) {
       $('previewToggle').classList.remove('hidden');
@@ -1469,6 +1495,7 @@ $('deleteConfirm').addEventListener('click', async () => {
       $('editor').classList.add('hidden');
       $('welcome').classList.remove('hidden');
       $('copyFilePathBtn').classList.add('hidden');
+      $('quickShareBtn').classList.add('hidden');
       loadTree();
     } catch (e) {
       toast('删除失败: ' + e.message, 'error');
@@ -1902,6 +1929,7 @@ $('logoutBtn').addEventListener('click', () => {
   $('editor').classList.add('hidden');
   $('welcome').classList.remove('hidden');
   $('copyFilePathBtn').classList.add('hidden');
+  $('quickShareBtn').classList.add('hidden');
   $('authModal').classList.add('show');
   $('tokenInput').value = '';
   updateRoleUI();
