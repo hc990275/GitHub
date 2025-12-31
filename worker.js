@@ -1,6 +1,6 @@
-// ========== Cloudflare Worker 完整代码 (GitHub 管理器 v9) ==========
-// 功能：多仓库管理、分支切换、批量下载、上传删除、重命名、友情链接、Releases
-// 作者：hc990275
+// ========== Cloudflare Worker 完整代码 (GitHub 管理器 v10 - 隐身版) ==========
+// 功能：多仓库管理、分支切换、批量下载、上传删除、重命名、友情链接、Releases、UA隐身分享
+// 作者：hc990275 (Modified)
 // GitHub：https://github.com/hc990275
 
 // ========== 配置区域 ==========
@@ -14,10 +14,20 @@ const TOKENS = {
   "your-admin-uuid-here": "admin"
 };
 
+// 默认允许的 User-Agent 关键字 (如果在环境变量未设置 ALLOWED_UAS 时使用)
+const DEFAULT_ALLOWED_UAS = ["Clash", "Mihomo", "v2ray", "Nakhoda", "SagerNet", "Box"];
+
 // ========== 工具函数 ==========
 
 function getGitHubToken(env) {
   return env.GITHUB_TOKEN || env.GITHUBWEB;
+}
+
+function getAllowedUAs(env) {
+  if (env.ALLOWED_UAS) {
+    return env.ALLOWED_UAS.split(',').map(s => s.trim().toLowerCase()).filter(s => s);
+  }
+  return DEFAULT_ALLOWED_UAS.map(s => s.toLowerCase());
 }
 
 async function getUserRepos(env) {
@@ -218,8 +228,11 @@ function getShareSecret(env) {
   return env.SHARE_SECRET || "default-share-secret-change-me";
 }
 
-function generateShareSign(path, secret) {
-  const data = path + ":" + secret;
+// 签名生成：加入 stealth 状态，防止用户篡改 URL 参数绕过隐身
+function generateShareSign(path, secret, stealth) {
+  // stealth 为 true (1) 或 false (0)
+  const isStealth = stealth ? "1" : "0";
+  const data = path + ":" + isStealth + ":" + secret;
   let hash = 0;
   for (let i = 0; i < data.length; i++) {
     const char = data.charCodeAt(i);
@@ -229,8 +242,8 @@ function generateShareSign(path, secret) {
   return Math.abs(hash).toString(36);
 }
 
-function verifyShareSign(path, sign, secret) {
-  return generateShareSign(path, secret) === sign;
+function verifyShareSign(path, sign, secret, stealth) {
+  return generateShareSign(path, secret, stealth) === sign;
 }
 
 function corsHeaders() {
@@ -376,15 +389,12 @@ async function deleteRepository(env, owner, repo) {
   return { success: res.status === 204, status: res.status };
 }
 
-// 重命名文件（复制内容到新路径，删除旧文件）
 async function renameFile(env, owner, repo, branch, oldPath, newPath) {
-  // 获取原文件内容
   const fileData = await githubAPI(env, owner, repo, oldPath + '?ref=' + branch);
   if (!fileData.sha) {
     return { error: "File not found" };
   }
   
-  // 创建新文件
   const content = fileData.content ? fileData.content.replace(/\n/g, '') : '';
   const createRes = await githubFetch(env, 
     `https://api.github.com/repos/${owner}/${repo}/contents/${newPath}`,
@@ -401,13 +411,11 @@ async function renameFile(env, owner, repo, branch, oldPath, newPath) {
     return { error: err.message || "Failed to create new file" };
   }
   
-  // 删除旧文件
   await deleteFile(env, owner, repo, branch, oldPath, fileData.sha);
   
   return { success: true, oldPath, newPath };
 }
 
-// 重命名目录（复制所有文件到新路径，删除旧文件）
 async function renameDirectory(env, owner, repo, branch, oldDir, newDir) {
   const files = await getTree(env, owner, repo, branch);
   const filesToRename = files.filter(f => f.path.startsWith(oldDir + '/') || f.path === oldDir);
@@ -527,7 +535,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
 </head>
 <body class="bg-slate-900 text-slate-100 h-screen overflow-hidden">
 
-<!-- 认证弹窗 -->
 <div id="authModal" class="modal show">
   <div class="bg-slate-800 rounded-2xl p-8 w-full max-w-md shadow-2xl border border-slate-700">
     <div class="text-center mb-6">
@@ -545,7 +552,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 搜索仓库弹窗 -->
 <div id="searchRepoModal" class="modal">
   <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-slate-700 max-h-[80vh] flex flex-col">
     <h3 class="text-xl font-bold mb-4">🔍 搜索仓库</h3>
@@ -559,7 +565,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 新建弹窗 -->
 <div id="createModal" class="modal">
   <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-700">
     <h3 class="text-xl font-bold mb-4">➕ 新建</h3>
@@ -586,7 +591,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 上传弹窗 -->
 <div id="uploadModal" class="modal">
   <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-700">
     <h3 class="text-xl font-bold mb-4">📤 上传文件</h3>
@@ -613,7 +617,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 重命名弹窗 -->
 <div id="renameModal" class="modal">
   <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-slate-700 max-h-[80vh] overflow-hidden flex flex-col">
     <h3 class="text-xl font-bold mb-4">✏️ 重命名</h3>
@@ -646,7 +649,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 下载弹窗 -->
 <div id="downloadModal" class="modal">
   <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-slate-700 max-h-[80vh] overflow-hidden flex flex-col">
     <h3 class="text-xl font-bold mb-4">⬇️ 下载文件</h3>
@@ -663,7 +665,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 分享弹窗 -->
 <div id="shareModal" class="modal">
   <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-slate-700 max-h-[80vh] overflow-hidden flex flex-col">
     <h3 class="text-xl font-bold mb-4">📤 分享文件</h3>
@@ -673,12 +674,16 @@ const FRONTEND_HTML = `<!DOCTYPE html>
       <span id="shareSelectedCount" class="text-xs text-slate-400 ml-auto">已选: 0</span>
     </div>
     <div id="shareFileList" class="flex-1 overflow-y-auto bg-slate-900 rounded-lg p-2 max-h-64 mb-4"></div>
-    <div class="mb-4">
-      <label class="flex items-center gap-2 cursor-pointer mb-2">
-        <input id="shareBase64" type="checkbox" class="w-4 h-4">
-        <span class="text-sm">Base64 编码</span>
+    <div class="mb-4 space-y-2">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input id="shareBase64" type="checkbox" class="w-4 h-4 rounded bg-slate-700 border-slate-600">
+        <span class="text-sm">Base64 编码 (内容)</span>
       </label>
-      <p class="text-xs text-slate-400">🔒 链接包含签名保护并强制实时刷新</p>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input id="shareStealth" type="checkbox" class="w-4 h-4 rounded bg-slate-700 border-slate-600">
+        <span class="text-sm text-yellow-400">🕵️ 启用隐身模式 (仅允许特定UA)</span>
+      </label>
+      <p class="text-xs text-slate-500">🔒 链接包含签名保护。隐身模式下非指定客户端(Clash/v2ray等)访问将返回404。</p>
     </div>
     <div id="shareResults" class="hidden mb-4 bg-slate-900 rounded-lg p-3 max-h-48 overflow-y-auto">
       <div class="text-sm text-slate-400 mb-2">分享链接:</div>
@@ -692,7 +697,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 删除弹窗 -->
 <div id="deleteModal" class="modal">
   <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-slate-700 max-h-[80vh] overflow-hidden flex flex-col">
     <h3 class="text-xl font-bold mb-4">🗑️ 删除管理</h3>
@@ -729,7 +733,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- Releases 弹窗 -->
 <div id="releaseModal" class="modal">
   <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-slate-700 max-h-[90vh] flex flex-col">
     <div class="flex items-center justify-between mb-4 shrink-0">
@@ -771,9 +774,7 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 主应用 -->
 <div id="app" class="flex h-full">
-  <!-- 侧边栏 -->
   <div class="w-72 bg-slate-800 border-r border-slate-700 flex flex-col">
     <div class="p-4 border-b border-slate-700">
       <h1 class="text-lg font-bold flex items-center gap-2"><span class="text-2xl">🐙</span> GitHub 管理器</h1>
@@ -783,7 +784,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
       </div>
     </div>
     
-    <!-- 仓库选择 -->
     <div class="p-3 border-b border-slate-700">
       <label class="text-xs text-slate-400 mb-2 block">选择仓库</label>
       <select id="repoSelect" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm mb-2"></select>
@@ -792,7 +792,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
         <button id="searchRepoOpenBtn" class="flex-1 text-xs px-2 py-1.5 bg-blue-600 hover:bg-blue-700 rounded transition">🔍 搜索</button>
       </div>
       
-      <!-- 分支选择 -->
       <div class="mt-2">
         <label class="text-xs text-slate-400 mb-1 block">分支</label>
         <select id="branchSelect" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm"></select>
@@ -828,7 +827,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- 编辑区 -->
   <div class="flex-1 flex flex-col bg-slate-900">
     <div class="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4">
       <div class="flex items-center gap-3 min-w-0 flex-1">
@@ -859,7 +857,6 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
-<!-- Toast -->
 <div id="toasts" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
 
 <script>
@@ -1275,12 +1272,13 @@ $('downloadConfirm').addEventListener('click', () => {
 
 $('downloadCancel').addEventListener('click', () => $('downloadModal').classList.remove('show'));
 
-// 分享
+// 分享 (Updated with Stealth Mode)
 $('shareTopBtn').addEventListener('click', () => {
   state.shareFiles.clear();
   renderShareFileList();
   $('shareResults').classList.add('hidden');
   $('shareCopyAll').classList.add('hidden');
+  $('shareStealth').checked = false; // Reset stealth check
   $('shareModal').classList.add('show');
 });
 
@@ -1316,13 +1314,16 @@ $('shareGenerate').addEventListener('click', async () => {
   if (!state.currentRepo || !state.currentBranch) return;
   
   const { owner, repo } = state.currentRepo;
-  const encode = $('shareBase64').checked ? '&encode=base64' : '';
+  let queryParams = '';
+  if ($('shareBase64').checked) queryParams += '&encode=base64';
+  if ($('shareStealth').checked) queryParams += '&stealth=1';
+
   const urls = [];
   
   for (const filePath of state.shareFiles) {
     const path = owner + '/' + repo + '/' + state.currentBranch + '/' + filePath;
     try {
-      const res = await api('/api/share-url?path=' + encodeURIComponent(path) + encode);
+      const res = await api('/api/share-url?path=' + encodeURIComponent(path) + queryParams);
       const data = await res.json();
       urls.push({ path: filePath, url: data.url });
     } catch (e) { urls.push({ path: filePath, url: '生成失败' }); }
@@ -1983,10 +1984,26 @@ export default {
       const fullPath = decodeURIComponent(path.substring(7));
       const sign = url.searchParams.get("sign");
       const encode = url.searchParams.get("encode");
+      const stealthParam = url.searchParams.get("stealth");
+      const isStealth = stealthParam === "1";
       
       const secret = getShareSecret(env);
-      if (!sign || !verifyShareSign(fullPath, sign, secret)) {
-        return textResponse("无效的分享链接（需要签名）", 403);
+      // 验证签名时包含 stealth 状态
+      if (!sign || !verifyShareSign(fullPath, sign, secret, isStealth)) {
+        return textResponse("无效的分享链接或签名不匹配", 403);
+      }
+
+      // 如果开启了隐身模式，检查 UA
+      if (isStealth) {
+        const ua = request.headers.get("User-Agent") || "";
+        const allowedUAs = getAllowedUAs(env);
+        // 检查 UA 是否包含允许的关键字（不区分大小写）
+        const isAllowed = allowedUAs.some(allowed => ua.toLowerCase().includes(allowed));
+        
+        if (!isAllowed) {
+          // 隐身模式下，不匹配直接 404，不暴露文件存在
+          return textResponse("File not found", 404);
+        }
       }
       
       const parts = fullPath.split('/');
@@ -2063,11 +2080,19 @@ export default {
     if (path === "/api/share-url") {
       const filePath = url.searchParams.get("path");
       const encode = url.searchParams.get("encode");
+      const stealthParam = url.searchParams.get("stealth");
+      
       if (!filePath) return jsonResponse({ error: "Missing path" }, 400);
+      
       const secret = getShareSecret(env);
-      const sign = generateShareSign(filePath, secret);
+      const isStealth = stealthParam === "1";
+      // 生成签名时包含隐身状态
+      const sign = generateShareSign(filePath, secret, isStealth);
+      
       let shareUrl = url.origin + '/share/' + encodeURIComponent(filePath) + '?sign=' + sign;
       if (encode) shareUrl += '&encode=' + encode;
+      if (isStealth) shareUrl += '&stealth=1';
+      
       shareUrl += '&t=' + Date.now();
       return jsonResponse({ url: shareUrl, sign });
     }
